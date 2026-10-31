@@ -28,7 +28,9 @@ let ready=null,starting=false;
 function state(value){button.dataset.state=value;button.setAttribute('aria-pressed',String(value==='playing'));button.setAttribute('aria-busy',String(value==='loading'));const label=value==='playing'?'Pause recording':value==='error'?'Audio unavailable. Click to retry.':value==='loading'?'Loading recording':'Play recording';button.setAttribute('aria-label',label);button.title=label;}
 async function prepare(){
  if(!/^\d{2}$/.test(clip))throw new Error('Invalid clip');
- const response=await fetch('./sound-bank-v1.json');
+ const set=new URLSearchParams(location.search).get('set');
+ const bankFile=/^v0[2-6]$/.test(set||'')?'./sound-bank-'+set+'.json':'./sound-bank-v1.json';
+ const response=await fetch(bankFile);
  if(!response.ok)throw new Error('Cannot load audio');
  const bank=await response.json();const source=bank[clip];
  if(typeof source!=='string'||!source.startsWith('data:audio/mpeg;base64,'))throw new Error('Unknown clip');
