@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Listen to recording</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden}
+body{display:grid;place-items:center}
+.gem{--dark:#061c67;--mid:#0759b8;--light:#61dfff;--glow:rgba(19,147,255,.42);position:relative;width:30px;height:30px;padding:0;border:1px solid rgba(17,63,126,.65);border-radius:50%;cursor:pointer;outline-offset:3px;isolation:isolate;
+background:radial-gradient(ellipse at 32% 19%,rgba(255,255,255,.94) 0%,rgba(215,248,255,.76) 8%,rgba(127,212,255,.13) 28%,transparent 40%),radial-gradient(ellipse at 57% 77%,var(--light) 0%,var(--mid) 42%,var(--dark) 83%);
+box-shadow:inset 0 1px 2px rgba(255,255,255,.85),inset -3px -4px 5px rgba(0,12,58,.55),inset 3px 0 4px rgba(119,215,255,.35),0 2px 3px rgba(8,36,81,.32),0 0 5px var(--glow);transition:box-shadow .18s,transform .12s;}
+.gem::before{content:"";position:absolute;inset:2px;border-radius:50%;border-top:1px solid rgba(255,255,255,.75);border-left:1px solid rgba(255,255,255,.26);pointer-events:none}
+.gem::after{content:"";position:absolute;left:7px;top:4px;width:12px;height:6px;border-radius:50%;background:linear-gradient(rgba(255,255,255,.82),rgba(255,255,255,.02));transform:rotate(-24deg);pointer-events:none}
+.gem:hover{box-shadow:inset 0 1px 2px rgba(255,255,255,.9),inset -3px -4px 5px rgba(0,12,58,.45),0 2px 4px rgba(8,36,81,.3),0 0 8px var(--glow)}
+.gem:active{transform:translateY(1px) scale(.96)}
+.gem:focus-visible{outline:2px solid #0857bd}
+.gem[data-state="playing"]{--dark:#06452f;--mid:#08a45e;--light:#a3ffb9;--glow:rgba(17,224,126,.65);border-color:#18794a}
+.gem[data-state="loading"]{opacity:.65}
+.gem[data-state="error"]{--dark:#63370a;--mid:#bd700b;--light:#ffe5a0;--glow:rgba(233,160,41,.45)}
+@media(prefers-reduced-motion:reduce){.gem{transition:none}}
+</style>
+</head>
+<body>
+<button type="button" class="gem" id="gem" data-state="idle" aria-label="Play recording" aria-pressed="false" title="Play recording"></button>
+<script>
+'use strict';
+const button=document.getElementById('gem');
+const audio=new Audio();audio.preload='none';
+const clip=new URLSearchParams(location.search).get('clip')||'01';
+let ready=null,starting=false;
+function state(value){button.dataset.state=value;button.setAttribute('aria-pressed',String(value==='playing'));button.setAttribute('aria-busy',String(value==='loading'));const label=value==='playing'?'Pause recording':value==='error'?'Audio unavailable. Click to retry.':value==='loading'?'Loading recording':'Play recording';button.setAttribute('aria-label',label);button.title=label;}
+async function prepare(){
+ if(!/^\d{2}$/.test(clip))throw new Error('Invalid clip');
+ const response=await fetch('./sound-bank-v1.json');
+ if(!response.ok)throw new Error('Cannot load audio');
+ const bank=await response.json();const source=bank[clip];
+ if(typeof source!=='string'||!source.startsWith('data:audio/mpeg;base64,'))throw new Error('Unknown clip');
+ audio.src=source;
+}
+function load(){if(!ready)ready=prepare().catch(error=>{ready=null;throw error});return ready;}
+button.addEventListener('click',async()=>{
+ if(starting)return;
+ if(!audio.paused){audio.pause();return;}
+ starting=true;state('loading');
+ try{await load();if(audio.ended)audio.currentTime=0;await audio.play();}
+ catch(error){state('error');}
+ finally{starting=false;}
+});
+audio.addEventListener('playing',()=>state('playing'));
+audio.addEventListener('waiting',()=>state('loading'));
+audio.addEventListener('pause',()=>state('idle'));
+audio.addEventListener('ended',()=>{audio.currentTime=0;state('idle')});
+audio.addEventListener('error',()=>{ready=null;state('error')});
+// Loading the source never starts playback. Only a deliberate click plays audio.
+load().catch(()=>state('error'));
+</script>
+</body>
+</html>
